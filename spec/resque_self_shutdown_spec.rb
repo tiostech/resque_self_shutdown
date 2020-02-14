@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'date'
 
 RSpec.describe ResqueSelfShutdown do
 
@@ -72,7 +73,7 @@ RSpec.describe ResqueSelfShutdown do
 
     before(:each) do
       ## We emulate a stop-workers that stops after a number of sleeps
-      shutdown.stub(:sleep) do |stime|
+      allow(shutdown).to receive(:sleep) do |stime|
 
         puts "inside sleep"
 

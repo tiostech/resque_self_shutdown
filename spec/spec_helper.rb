@@ -1,5 +1,6 @@
 require "bundler/setup"
 require "resque_self_shutdown"
+require 'time-warp'
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure

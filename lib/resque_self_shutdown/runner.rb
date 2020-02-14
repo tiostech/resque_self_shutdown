@@ -1,3 +1,6 @@
+require 'logger'
+require 'time'
+
 module ResqueSelfShutdown
   class Runner
 
@@ -121,12 +124,12 @@ module ResqueSelfShutdown
         return nil
       end
 
-      timestamp_time = Time.strptime(timestamp, '%Y-%m-%d %H:%M:%S %Z').utc rescue nil
-      if timestamp_time.nil?
-        logger.warn("Could not parse timestamp #{timestamp} from #{file_path}")
+      begin
+        timestamp_time = Time.strptime(timestamp, '%Y-%m-%d %H:%M:%S %Z').utc
+      rescue => e
+        logger.warn("Could not parse timestamp #{timestamp} from #{file_path}: #{e.message}")
         return nil
       end
-
       return (Time.now.utc - timestamp_time).to_i
 
     end

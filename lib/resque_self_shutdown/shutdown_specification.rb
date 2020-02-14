@@ -82,7 +82,7 @@ module ResqueSelfShutdown
 
       reset!
 
-      if self_shutdown_spec.present?
+      if !self_shutdown_spec.nil?
         parts = self_shutdown_spec.split(/\s*;\s*/)
 
         parts.each do |part|
