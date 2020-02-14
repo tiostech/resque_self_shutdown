@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+
+require 'resque_self_shutdown'
+
+ResqueSelfShutdown::Cli.start!(ARGV)

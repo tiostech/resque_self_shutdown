@@ -22,9 +22,13 @@ module ResqueSelfShutdown
     end
 
     def initialize(str)
-
+      @str = str
       reset!
       parse_specification(str)
+    end
+
+    def to_s
+      @str
     end
 
     def self.valid?(str)
@@ -46,7 +50,7 @@ module ResqueSelfShutdown
 
     def get_threshold(time_offset, type)
 
-      raise StandardError, "Invalid type" unless [:prework, :postwork].include?(type)
+      raise ArgumentError, "Invalid type" unless [:prework, :postwork].include?(type)
 
       nowtime = Time.now
       seconds_since_day_start = nowtime.hour * 3600 + nowtime.min * 60 + nowtime.sec
@@ -94,7 +98,7 @@ module ResqueSelfShutdown
             postwork_rand = matches[5].to_i
 
           else
-            raise StandardError, "Cannot parse self shutdown spec.  Should have idlePreWork:123+10,idlePostWork:22+10 format but got #{self_shutdown_spec} "
+            raise ArgumentError, "Cannot parse self shutdown spec.  Should have idlePreWork:123+10,idlePostWork:22+10 format but got #{self_shutdown_spec} "
           end
 
           if matches = /^(\d\d)(\d\d)\-(\d\d)(\d\d)::/.match(part)

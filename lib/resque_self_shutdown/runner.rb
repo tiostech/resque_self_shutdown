@@ -32,12 +32,12 @@ module ResqueSelfShutdown
       # check this often for all processes being down, after stopping workers.
       @sleep_time_during_shutdown = options[:sleep_time_during_shutdown].to_i || 10
 
-      raise StandardError, "Must specify :stop_runners_script" unless @stop_runners_script
-      raise StandardError, ":stop_runners_script #{@stop_runners_script} does not exist" unless File.exists?(@stop_runners_script)
-      raise StandardError, "Must specify :last_complete_file" unless @last_complete_file
-      raise StandardError, "Must specify :last_error_file" unless @last_error_file
-      raise StandardError, "Must specify :workers_start_file" unless @workers_start_file
-      raise StandardError, "Must specify non-empty :self_shutdown_specification" if (@shutdown_spec_str.nil? || @shutdown_spec_str == '')
+      raise ArgumentError, "Must specify :stop_runners_script" unless @stop_runners_script
+      raise ArgumentError, ":stop_runners_script #{@stop_runners_script} does not exist" unless File.exists?(@stop_runners_script)
+      raise ArgumentError, "Must specify :last_complete_file" unless @last_complete_file
+      raise ArgumentError, "Must specify :last_error_file" unless @last_error_file
+      raise ArgumentError, "Must specify :workers_start_file" unless @workers_start_file
+      raise ArgumentError, "Must specify non-empty :self_shutdown_specification" if (@shutdown_spec_str.nil? || @shutdown_spec_str == '')
 
       # this will raise an error if the specification fails to parse
       @shutdown_spec = ShutdownSpecification.new(options[:self_shutdown_specification])
