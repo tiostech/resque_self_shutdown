@@ -4,7 +4,12 @@ require 'time'
 module ResqueSelfShutdown
   class Runner
 
-    attr_reader :logger
+    attr_reader :logger, :stop_runners_script,
+        :process_running_regex, :process_working_regex,
+        :last_complete_file, :last_error_file,:workers_start_file,
+        :shutdown_spec_str, :sleep_time, :sleep_time_during_shutdown,
+        :shutdown_spec
+
 
     # Options:
     #   :stop_runners_script : [String] the script to call to stop runners
@@ -16,14 +21,14 @@ module ResqueSelfShutdown
     #   :sleep_time: [int/String] number of seconds to sleep between checks
     #   :sleep_time_during_shutdown: [int/String] number of seconds to sleep between checks, after stopping workers and waiting for them to be done and then shutting down
     def initialize(options = {})
-      @stop_runners_script = options[:stop_runners_script]
+      @stop_runners_script   = options[:stop_runners_script]
       @process_running_regex = options[:process_running_regex]
       @process_working_regex = options[:process_working_regex]
-      @last_complete_file  = options[:last_complete_file]
-      @last_error_file  = options[:last_error_file]
-      @workers_start_file  = options[:workers_start_file]
-      @shutdown_spec_str = options[:self_shutdown_specification]
-      @sleep_time = options[:sleep_time].to_i || 30
+      @last_complete_file    = options[:last_complete_file]
+      @last_error_file       = options[:last_error_file]
+      @workers_start_file    = options[:workers_start_file]
+      @shutdown_spec_str     = options[:self_shutdown_specification]
+      @sleep_time            = options[:sleep_time].to_i || 30
       # check this often for all processes being down, after stopping workers.
       @sleep_time_during_shutdown = options[:sleep_time_during_shutdown].to_i || 10
 
@@ -42,7 +47,7 @@ module ResqueSelfShutdown
     end
 
     def time_thresholds
-      @shutdown_spec.get_thresholds
+      shutdown_spec.get_thresholds
     end
 
     def loop!
@@ -72,12 +77,12 @@ module ResqueSelfShutdown
               (!prework_time_check.nil? && !elapsed_threshold.nil? && prework_time_check >= elapsed_threshold)
 
             # Stop the workers
-            logger.info "Stopping workers with #{@stop_runners_script}: staleness check: PostWork: #{postwork_time_check || 'NA'} >= #{postwork_treshold}; PreWork: #{prework_time_check} >= #{prework_threshold}"
-            command_output("#{@stop_runners_script}")
+            logger.info "Stopping workers with #{stop_runners_script}: staleness check: PostWork: #{postwork_time_check || 'NA'} >= #{postwork_treshold}; PreWork: #{prework_time_check} >= #{prework_threshold}"
+            command_output("#{stop_runners_script}")
 
             logger.info "Waiting for processes to be done"
             while(num_running_processes > 0)
-              sleep(@sleep_time_during_shutdown)
+              sleep(sleep_time_during_shutdown)
             end
 
             # We used to keep the servers up indefinitely if there was an error, but that causes more problems than benefits
@@ -94,7 +99,7 @@ module ResqueSelfShutdown
 
         end
 
-        sleep(@sleep_time)
+        sleep(sleep_time)
       end
 
     end
@@ -109,11 +114,11 @@ module ResqueSelfShutdown
 
 
     def num_running_processes
-      command_output("pgrep -f -c '#{@process_running_regex}'").lines.first.to_i
+      command_output("pgrep -f -c '#{process_running_regex}'").lines.first.to_i
     end
 
     def num_working_processes
-      command_output("pgrep -f -c '#{@process_working_regex}'").lines.first.to_i
+      command_output("pgrep -f -c '#{process_working_regex}'").lines.first.to_i
     end
 
 
@@ -135,15 +140,15 @@ module ResqueSelfShutdown
     end
 
     def time_since_latest_completion
-      time_since_timestamp_file(@last_complete_file)
+      time_since_timestamp_file(last_complete_file)
     end
 
     def time_since_workers_start
-      time_since_timestamp_file(@workers_start_file)
+      time_since_timestamp_file(workers_start_file)
     end
 
     def has_errors?
-      File.exists?(@last_error_file)
+      File.exists?(last_error_file)
     end
 
 
