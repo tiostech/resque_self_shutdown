@@ -2,16 +2,13 @@ require 'logger'
 require 'time'
 
 module ResqueSelfShutdown
-  class Runner
+  class Runner < OptionReader
 
-    attr_reader :logger, :stop_runners_script,
-        :process_running_regex, :process_working_regex,
-        :last_complete_file, :last_error_file,:workers_start_file,
-        :shutdown_spec_str, :sleep_time, :sleep_time_during_shutdown,
-        :shutdown_spec
+    attr_reader :logger,:shutdown_spec_str, :shutdown_spec
 
 
     # Options:
+    #   :config_file: [String] a filename for a JSON file that has the parameters below.
     #   :stop_runners_script : [String] the script to call to stop runners
     #   :process_running_regex : [String] grep string to use for searching for Resque processes running
     #   :process_working_regex : [String] grep string to use for searching for Resque workers doing work
@@ -21,26 +18,18 @@ module ResqueSelfShutdown
     #   :sleep_time: [int/String] number of seconds to sleep between checks
     #   :sleep_time_during_shutdown: [int/String] number of seconds to sleep between checks, after stopping workers and waiting for them to be done and then shutting down
     def initialize(options = {})
-      @stop_runners_script   = options[:stop_runners_script]
-      @process_running_regex = options[:process_running_regex]
-      @process_working_regex = options[:process_working_regex]
-      @last_complete_file    = options[:last_complete_file]
-      @last_error_file       = options[:last_error_file]
-      @workers_start_file    = options[:workers_start_file]
-      @shutdown_spec_str     = options[:self_shutdown_specification]
-      @sleep_time            = options[:sleep_time].to_i || 30
-      # check this often for all processes being down, after stopping workers.
-      @sleep_time_during_shutdown = options[:sleep_time_during_shutdown].to_i || 10
+      super
 
-      raise ArgumentError, "Must specify :stop_runners_script" unless @stop_runners_script
-      raise ArgumentError, ":stop_runners_script #{@stop_runners_script} does not exist" unless File.exists?(@stop_runners_script)
-      raise ArgumentError, "Must specify :last_complete_file" unless @last_complete_file
-      raise ArgumentError, "Must specify :last_error_file" unless @last_error_file
-      raise ArgumentError, "Must specify :workers_start_file" unless @workers_start_file
-      raise ArgumentError, "Must specify non-empty :self_shutdown_specification" if (@shutdown_spec_str.nil? || @shutdown_spec_str == '')
+      raise ArgumentError, "Must specify :stop_runners_script" unless stop_runners_script
+      raise ArgumentError, ":stop_runners_script #{stop_runners_script} does not exist" unless File.exists?(stop_runners_script)
+      raise ArgumentError, "Must specify :last_complete_file" unless last_complete_file
+      raise ArgumentError, "Must specify :last_error_file" unless last_error_file
+      raise ArgumentError, "Must specify :workers_start_file" unless workers_start_file
+      raise ArgumentError, "Must specify non-empty :self_shutdown_specification" if (shutdown_spec_str.nil? || shutdown_spec_str == '')
 
       # this will raise an error if the specification fails to parse
-      @shutdown_spec = ShutdownSpecification.new(options[:self_shutdown_specification])
+      @shutdown_spec_str = options[:self_shutdown_specification]
+      @shutdown_spec = ShutdownSpecification.new(@shutdown_spec_str)
 
       @logger = Logger.new(STDOUT)
       @logger.level = Logger::DEBUG

@@ -11,6 +11,9 @@ module ResqueSelfShutdown
         opts.banner = "Usage: self_shutdown [options] \"SPEC\""
         opts.separator ""
         opts.separator "Options:"
+        opts.on("--config-file PATH", String, "JSON configuration file") do |s|
+          start_opts[:config_file] = s
+        end
         opts.on("--stop-runners-script PATH", String, "script to call to stop workers") do |s|
           start_opts[:stop_runners_script] = s
         end
@@ -55,6 +58,7 @@ module ResqueSelfShutdown
       rescue ArgumentError => e
         puts "Error with parameters!: #{e.message}"
         puts parser.help
+        raise e
       rescue => other
         raise other
       end

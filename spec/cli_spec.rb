@@ -3,6 +3,14 @@ require 'resque_self_shutdown/cli'
 
 RSpec.describe ResqueSelfShutdown::Cli do
   it 'deals with errant arguments' do
+    argv = %w( --stop-runners-script /usr/bin/env)
+
+    expect {
+      ResqueSelfShutdown::Cli.start!(argv)
+    }.to raise_error(ArgumentError)
+
+  end
+  it 'processes arguments' do
     argv = %w( --stop-runners-script /usr/bin/env --process-running-regex foo --process-working-regex bar --last-complete-file /tmp/lastcomplete.txt --last-error-file /tmp/lasterror.txt --workers-start-file /tmp/workerstart.txt idlePreWork:123+10,idlePostWork:22+10)
 
     loop_calls = 0
