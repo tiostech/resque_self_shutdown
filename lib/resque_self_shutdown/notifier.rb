@@ -2,21 +2,28 @@ require 'logger'
 require 'time'
 
 module ResqueSelfShutdown
-  class Notifier < OptionReader
+  class Notifier
 
-    attr_reader :logger, :last_complete_file, :last_error_file, :workers_start_file
+    attr_reader :logger
 
-    # Options:
-    #   :config_file: [String] a filename for a JSON file that has the parameters below.
-    #   :last_complete_file: [String] path to file that will be present when a worker finishes doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
-    #   :last_error_file: [String] path to file that will be present when there is an error
-    #   :workers_start_file: [String] path to file that will be present when workers start doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
-    def initialize(options = {})
-      super
+    include ResqueSelfShutdown::ConfigReader
 
-      raise ArgumentError, "Must specify :last_complete_file" unless last_complete_file
-      raise ArgumentError, "Must specify :last_error_file" unless last_error_file
-      raise ArgumentError, "Must specify :workers_start_file" unless workers_start_file
+
+    # Parameters
+    # config_file: [String] a filename for a JSON file that has the parameters below.
+    #       "last_complete_file": [String] path to file that will be present when a worker finishes doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
+    #       "last_error_file": [String] path to file that will be present when there is an error
+    #       "workers_start_file": [String] path to file that will be present when workers start doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
+    #
+    # These config parameters are a subset of the Runner configurations.
+    # Of those parameters, we are only going to use last_complete_file, last_error_file, and workers_start_file here.
+    def initialize(config_file)
+
+      parse_config(config_file)
+
+      raise ArgumentError, "Must specify last_complete_file" unless last_complete_file
+      raise ArgumentError, "Must specify last_error_file" unless last_error_file
+      raise ArgumentError, "Must specify workers_start_file" unless workers_start_file
 
       FileUtils.mkdir_p File.dirname(last_complete_file)
       FileUtils.mkdir_p File.dirname(last_error_file)
@@ -30,7 +37,6 @@ module ResqueSelfShutdown
       File.delete last_complete_file
       File.delete last_error_file
       File.delete workers_start_file
-
     end
 
     def notify_error!

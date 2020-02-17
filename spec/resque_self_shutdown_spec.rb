@@ -18,21 +18,28 @@ RSpec.describe ResqueSelfShutdown do
   let(:system_calls) { [] }
   let(:sleep_times) { [] }
 
-  let(:init_params) {
-    {
-        :stop_runners_script => stop_runners_script,  # just a placeholder script
-        :process_running_regex => process_running_regex,
-        :process_working_regex => process_working_regex,
-        :last_complete_file  => last_complete_file,
-        :last_error_file => last_error_file,
-        :workers_start_file  => workers_start_file,
-        :sleep_time_during_shutdown => sleep_time_during_shutdown,
-        :sleep_time => sleep_time,
-    }
+  let(:temp_dir) {
+    tmp = "/tmp/foo-#{SecureRandom.uuid}"
+    puts "Writing #{tmp}"
+    FileUtils.mkdir_p(tmp)
+    tmp
   }
 
   let(:shutdown) {
-    ResqueSelfShutdown::Runner.new(init_params.merge(:self_shutdown_specification => shutdown_spec))
+    File.open("#{temp_dir}/config.json", 'wb') do |f|
+      f.write(JSON.pretty_generate({
+          :stop_runners_script => stop_runners_script,
+          :process_running_regex => process_running_regex,
+          :process_working_regex => process_working_regex,
+          :last_complete_file => last_complete_file,
+          :last_error_file => last_error_file,
+          :workers_start_file => workers_start_file,
+          :self_shutdown_specification => shutdown_spec,
+          :sleep_time => sleep_time,
+          :sleep_time_during_shutdown => sleep_time_during_shutdown
+      }))
+    end
+    ResqueSelfShutdown::Runner.new("#{temp_dir}/config.json")
   }
 
   before(:each) do
@@ -65,6 +72,10 @@ RSpec.describe ResqueSelfShutdown do
         raise StandardError, "Shutting down!"  # to help with testing, do this
       end
     end
+  end
+
+  after(:each) do
+    FileUtils.rm_rf(temp_dir)
   end
 
   describe "general flows" do

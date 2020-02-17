@@ -29,7 +29,7 @@ RSpec.describe ResqueSelfShutdown::Notifier do
           :sleep_time_during_shutdown => 10
       }))
     end
-    ResqueSelfShutdown::Notifier.new(config_file: "#{temp_dir}/config.json")
+    ResqueSelfShutdown::Notifier.new("#{temp_dir}/config.json")
   }
 
   before(:each) do
