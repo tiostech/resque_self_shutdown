@@ -98,7 +98,7 @@ Running the Self Shutdown monitor:
 ```bash
 
 # help
-bunlde exec self_shutdown -h
+bundle exec self_shutdown -h
 
 # Start:
 bundle exec self_shutdown -c /path/to/shutdownconfig.json start
