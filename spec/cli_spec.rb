@@ -1,18 +1,30 @@
 require 'spec_helper'
 require 'resque_self_shutdown/cli'
+require 'tempfile'
+require 'securerandom'
 
 RSpec.describe ResqueSelfShutdown::Cli do
 
   describe 'bad inputs' do
     it 'complains if the config file is not specified' do
       expect {
-        ResqueSelfShutdown::Cli.start!([])
+        ResqueSelfShutdown::Cli.start!(['start'])
       }.to raise_error(ArgumentError, /Must specify configuration file/)
+    end
+
+    it 'complains if the config file cannot be parsed' do
+      tmp = Tempfile.new('configfile')
+      tmp << 'this"is"some-bad; json... ??? !#JKJKJ'
+      tmp.flush
+
+      expect {
+        ResqueSelfShutdown::Cli.start!(["-c", tmp.path, 'start'])
+      }.to raise_error(ArgumentError, /Problem parsing JSON/)
     end
 
     it 'complains if the config file does not exist' do
       expect {
-        ResqueSelfShutdown::Cli.start!(["-c", "/path/to/non/existent/file.json"])
+        ResqueSelfShutdown::Cli.start!(["-c", "/path/to/non/existent/file.json", 'start'])
       }.to raise_error(ArgumentError, /Configuration file .* does not exist/)
     end
   end
@@ -44,7 +56,7 @@ RSpec.describe ResqueSelfShutdown::Cli do
     }
 
     it 'processes arguments' do
-      argv = ['-c', config_file]
+      argv = ['-c', config_file,'start']
 
       loop_calls = 0
       allow_any_instance_of(ResqueSelfShutdown::Runner).to receive(:loop!) do |ss|
@@ -65,6 +77,58 @@ RSpec.describe ResqueSelfShutdown::Cli do
       ResqueSelfShutdown::Cli.start!(argv)
 
       expect(loop_calls).to eq(1)
+    end
+
+    it 'daemonizes' do
+
+      expect(ResqueSelfShutdown::Cli).to receive(:fork).twice.and_return(false)
+      expect(Process).to receive(:setsid).and_return(true)
+
+      expect($stdout).to receive(:reopen).with("/tmp/foo-out.log","a").and_return(true)
+      expect($stderr).to receive(:reopen).with("/tmp/foo-err.log","a").and_return(true)
+
+      expect(Dir).to receive(:chdir).with("/").and_return(true)
+
+      loop_calls = 0
+      allow_any_instance_of(ResqueSelfShutdown::Runner).to receive(:loop!) do |ss|
+        loop_calls += 1
+      end
+
+      argv = ['-c', config_file,'-d','-o','/tmp/foo-out.log','-e','/tmp/foo-err.log','start']
+
+      ResqueSelfShutdown::Cli.start!(argv)
+
+      expect(loop_calls).to eq(1)
+    end
+
+  end
+
+
+
+
+  describe "killing existing runners with stop" do
+    it 'kills runners' do
+
+      kill_commands = []
+      allow(ResqueSelfShutdown::Cli).to receive(:command_output) do |cmd|
+        if cmd == 'ps -A -o pid,command | grep "ResqueSelfShutdownMonitor"'
+          puts "returning expected"
+          [
+              '1234 ResqueSelfShutdownMonitor::running',
+              '2222 sh -c ps -A -o pid,command | grep "ResqueSelfShutdownMonitor"',
+              '2224 grep ResqueSelfShutdownMonitor'
+          ].join("\n")
+        elsif cmd =~ /^kill /
+          kill_commands << cmd
+        else
+          puts "Got unexpected Command: #{cmd}"
+        end
+      end
+
+      ResqueSelfShutdown::Cli.start!(["stop"])
+
+      expect(kill_commands).to eq(["kill -s QUIT 1234"])
+
     end
   end
 

@@ -1,5 +1,6 @@
 require 'spec_helper'
 require 'date'
+require 'securerandom'
 
 RSpec.describe ResqueSelfShutdown do
 

@@ -1,38 +1,136 @@
 # ResqueSelfShutdown
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/resque_self_shutdown`. To experiment with that code, run `bin/console` for an interactive prompt.
+A simple Ruby gem to monitor Resque workers and shut down the server when work is completed.
 
-TODO: Delete this and the text above, and describe your gem
 
 ## Installation
 
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'resque_self_shutdown'
+git "https://github.com/tiostech/resque_self_shutdown.git" do
+  gem 'resque_self_shutdown'
+end
 ```
 
 And then execute:
 
     $ bundle
 
-Or install it yourself as:
-
-    $ gem install resque_self_shutdown
-
 ## Usage
 
-TODO: Write usage instructions here
+
+There are two sides to this:
+
+* Notification: We provide some notification hooks for Resque workers to tell us when work is started, completed, or has errors.  Notifications are stored as timestamped files.
+* Runner: We monitor Resque workers using basic system commands (pgrep) to see if Resque workers are running.  We look at the notification files (e.g. how long it has been since the last job completed)
+
+Both sides are controlled by a single JSON configuration file that looks like this:
+
+```json
+{
+  "stop_runners_script": "/path/to/stop/runners/script",
+  "process_running_regex": "resque",
+  "process_working_regex": "resque",
+  "last_complete_file": "/path/to/log/latestJobCompleteUTC.txt",
+  "last_error_file": "/path/to/log/latestJobErrorUTC.txt",
+  "workers_start_file": "/path/to/log/workersStartedUTC.txt",
+  "self_shutdown_specification": "idlePreWork:10800+300,idlePostWork:900+600",
+  "sleep_time": 30,
+  "sleep_time_during_shutdown": 10
+}
+```
+
+Here are explanations of the parameters:
+
+* "stop_runners_script": [String] the script to call to stop runners
+* "process_running_regex": [String] grep string to use for searching for Resque processes running
+* "process_working_regex": [String] grep string to use for searching for Resque workers doing work
+* "last_complete_file": [String] path to file that will be present when a worker finishes doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
+* "last_error_file": [String] path to file that will be present when there is an error
+* "workers_start_file": [String] path to file that will be present when workers start doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
+* "sleep_time": [int/String] number of seconds to sleep between checks
+* "sleep_time_during_shutdown": [int/String] number of seconds to sleep between checks, after stopping workers and waiting for them to be done and then shutting down
+* "self_shutdown_specification": [String] shutdown specification
+
+The self-shutdown specification looks like this:
+
+```ruby
+  #   idlePreWork:800+10,idlePostWork:300+60 ==>
+  #            If no jobs have completed, then shutdown after 800+rand(0..10) seconds since workers started
+  #            If jobs have competed, then shut down after 300+rand(0..60) seconds since the last completion
+  #
+  #   0600-1200::idlePreWork:10800+300,idlePostWork:10800+300; idlePreWork:800+60,idlePostWork:300+60
+  #       If current system (central) time is between 06:00 and 12:00 of current day...
+  #            If no jobs have completed, then shutdown after 10800+rand(0..300) seconds since workers started
+  #            If jobs have competed, then shut down after 10800+rand(0..300) seconds since the last completion
+  #       Otherwise (all other hours)...
+  #            If no jobs have completed, then shutdown after 800+rand(0..60) seconds since workers started
+  #            If jobs have competed, then shut down after 300+rand(0..60) seconds since the last completion
+```
+
+Both the notification and runner should use the same configuration, so that, in particular, the notification files are the same.
+
+The expected notification cycles are as follows.  You should include this gem and then issue notifications
+
+```ruby
+shutdown_notifier = ResqueSelfShutdown::Notifier.new(config_file)
+
+# Inside the :start_workers Rake task:
+## At the beginning of the :start_workers Rake task:
+notifier = ResqueSelfShutdown::Notifier.new(config_file)
+notifier.clear!
+#  At the end of the :start_workers Rake task:
+notifier.notify_worker_start!
+
+# Inside job handling
+
+## If an error happens,
+ResqueSelfShutdown::Notifier.new(config_file).notify_error!
+
+## After the job successfully completed,
+ResqueSelfShutdown::Notifier.new(config_file).notify_complete!
+
+```
+
+Running the Self Shutdown monitor:
+
+```bash
+
+# help
+bunlde exec self_shutdown -h
+
+# Start:
+bundle exec self_shutdown -c /path/to/shutdownconfig.json start
+# Start as daemon
+bundle exec self_shutdown -c /path/to/shutdownconfig.json -d start
+# Start as daemon with stdout and stderr to logs
+bundle exec self_shutdown -c /path/to/shutdownconfig.json -d -o /tmp/shutdown_out.log -e /tmp/shutdown_err.log start
+
+# Kill running jobs
+bundle exec self_shutdown stop
+
+```
+
+The psline changes to "ResqueSelfShutdownMonitor::running", which we use for killing existing runners.
+
+Note for development mode:
+
+```bash
+# you may need to start as:
+bundle exec ./exec/self_shutdown [args]
+```
+
+
+
 
 ## Development
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+After checking out the repo, run `bundle install` to install dependencies. Then, run `bundle exec rspec` to run the tests.
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/thefooj/resque_self_shutdown. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [Contributor Covenant](http://contributor-covenant.org) code of conduct.
+Bug reports and pull requests are welcome on GitHub at https://github.com/tisotech/resque_self_shutdown. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [Contributor Covenant](http://contributor-covenant.org) code of conduct.
 
 ## License
 
