@@ -24,7 +24,6 @@ module ResqueSelfShutdown
       parse_config(config_file)
 
       raise ArgumentError, "Must specify stop_runners_script" unless stop_runners_script
-      raise ArgumentError, "stop_runners_script #{stop_runners_script} does not exist" unless File.exists?(stop_runners_script)
       raise ArgumentError, "Must specify last_complete_file" unless last_complete_file
       raise ArgumentError, "Must specify last_error_file" unless last_error_file
       raise ArgumentError, "Must specify workers_start_file" unless workers_start_file
