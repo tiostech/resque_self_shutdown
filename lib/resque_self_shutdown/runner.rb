@@ -62,9 +62,9 @@ module ResqueSelfShutdown
 
           logger.info "check: NumWorkers: #{num_working} ... PostWork: #{postwork_time_check || 'NA'} >= #{postwork_treshold}; PreWork: #{prework_time_check} >= #{prework_threshold}; Elapsed: #{prework_time_check || 'NA'} >= #{elapsed_threshold};"
 
-          if num_working == 0 && (!postwork_time_check.nil? && !postwork_treshold.nil? && postwork_time_check >= postwork_treshold) ||
+          if num_working == 0 && ((!postwork_time_check.nil? && !postwork_treshold.nil? && postwork_time_check >= postwork_treshold) ||
               (postwork_time_check.nil? && !prework_time_check.nil? && !prework_threshold.nil? && prework_time_check >= prework_threshold) ||
-              (!prework_time_check.nil? && !elapsed_threshold.nil? && prework_time_check >= elapsed_threshold)
+              (!prework_time_check.nil? && !elapsed_threshold.nil? && prework_time_check >= elapsed_threshold))
 
             # Stop the workers
             logger.info "Stopping workers with #{stop_runners_script}: staleness check: PostWork: #{postwork_time_check || 'NA'} >= #{postwork_treshold}; PreWork: #{prework_time_check} >= #{prework_threshold}"
