@@ -26,7 +26,7 @@ RSpec.describe ResqueSelfShutdown do
     tmp
   }
 
-  let(:shutdown) {
+  let(:config_file) {
     File.open("#{temp_dir}/config.json", 'wb') do |f|
       f.write(JSON.pretty_generate({
           :stop_runners_script => stop_runners_script,
@@ -40,7 +40,12 @@ RSpec.describe ResqueSelfShutdown do
           :sleep_time_during_shutdown => sleep_time_during_shutdown
       }))
     end
-    ResqueSelfShutdown::Runner.new("#{temp_dir}/config.json")
+    "#{temp_dir}/config.json"
+  }
+
+
+  let(:shutdown) {
+    ResqueSelfShutdown::Runner.new(config_file)
   }
 
   before(:each) do
@@ -86,25 +91,55 @@ RSpec.describe ResqueSelfShutdown do
     before(:each) do
       ## We emulate a stop-workers that stops after a number of sleeps
       allow(shutdown).to receive(:sleep) do |stime|
-
         puts "inside sleep"
-
         sleep_times << stime
-
         # after a couple sleeps, we are down to 0 working
         if sleep_times.select {|s| s == sleep_time}.count >= 2
           puts "Seting processes to 1,0"
           @num_running_processes = 1
           @num_working_processes = 0
         end
-
         # after a couple of sleeps after post-stop-workers, we are down to 0 running, 0 working
         if sleep_times.select {|s| s == sleep_time_during_shutdown }.count >= 2
           puts "setting processes to 0,0"
           @num_running_processes = 0
           @num_working_processes = 0
         end
+      end
+    end
 
+    it 'should never shut down if something is still working' do
+      # bypass the process changing before block above.
+      shutdown2 = ResqueSelfShutdown::Runner.new(config_file)
+      sleeps2 = []
+      @num_running_processes = 1
+      @num_working_processes = 1
+      allow(shutdown2).to receive(:sleep) do |stime|
+        sleeps2 << stime
+        if stime == sleep_time_during_shutdown
+          @num_running_processes = 0
+          @num_working_processes = 0
+        else
+          raise StandardError, "No sleep!"
+        end
+      end
+
+      start_seconds_ago = 12000
+      pretend_now_is(DateTime.parse('2018-07-25 11:16:00 EDT')) do
+        File.delete(last_complete_file) rescue nil
+        File.open(workers_start_file, 'wb') {|f| f.puts (Time.now.utc - start_seconds_ago).strftime('%Y-%m-%d %H:%M:%S %Z') }
+
+        # this would normally sleep because something is actually still running - but we block normal sleeping above -
+        # to prove that the sleeping and looping continues when something is working
+        expect {
+          shutdown2.loop!
+        }.to raise_error(StandardError, /No sleep/)
+
+        # suppose nothign is working.  It doesn't finish, but dies for some reason.  Now it's stale the prework should trigger shutdown
+        @num_working_processes = 0
+        expect {
+          shutdown2.loop!
+        }.to raise_error(StandardError, 'Shutting down!')  # we stub above, and have it raise an error
       end
     end
 
