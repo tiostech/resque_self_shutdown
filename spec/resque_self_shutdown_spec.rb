@@ -12,6 +12,7 @@ RSpec.describe ResqueSelfShutdown do
   let(:last_complete_file)    { '/tmp/latestJobCompleteUTC.txt' }
   let(:last_error_file)       { '/tmp/latestJobErrorUTC.txt' }
   let(:workers_start_file)    { '/tmp/workersStartedUTC.txt' }
+  let(:server_start_file)     { '/tmp/READY.txt' }
 
   let(:sleep_time_during_shutdown) { 10 }
   let(:sleep_time) { 30 }
@@ -34,6 +35,7 @@ RSpec.describe ResqueSelfShutdown do
           :process_working_regex => process_working_regex,
           :last_complete_file => last_complete_file,
           :last_error_file => last_error_file,
+          :server_start_file => server_start_file,
           :workers_start_file => workers_start_file,
           :self_shutdown_specification => shutdown_spec,
           :sleep_time => sleep_time,
@@ -52,6 +54,7 @@ RSpec.describe ResqueSelfShutdown do
     File.delete(workers_start_file) rescue nil
     File.delete(last_complete_file) rescue nil
     File.delete(last_error_file) rescue nil
+    File.delete(server_start_file) rescue nil
 
     @num_running_processes = 1
     @num_working_processes = 1
@@ -145,10 +148,25 @@ RSpec.describe ResqueSelfShutdown do
 
     describe "if no work has been done (i.e. last_complete_file is not there)" do
 
+      let(:idle_seconds) { 12000 }
+
+      it 'determines the idle time from the server-start file if workers-start is not present and compares vs the idlePostWork specification (idlePreWork:10800+300)' do
+        pretend_now_is(DateTime.parse('2018-07-25 11:16:00 EDT')) do
+          File.delete(last_complete_file) rescue nil
+          File.delete(workers_start_file) rescue nil
+          FileUtils.touch(server_start_file, :mtime => (Time.now.utc - idle_seconds))
+
+          expect {
+            shutdown.loop!
+            # it should eventually shut down
+          }.to raise_error(StandardError, 'Shutting down!')  # we stub above, and have it raise an error
+
+          expect(system_calls).to include(stop_runners_script)
+          expect(system_calls.last).to eq('sudo shutdown -h now')
+        end
+      end
+
       it 'determines the idle time from the workers-start file and compares vs the idlePostWork specification (idlePreWork:10800+300)' do
-
-        idle_seconds = 12000
-
         pretend_now_is(DateTime.parse('2018-07-25 11:16:00 EDT')) do
 
           File.delete(last_complete_file) rescue nil
@@ -161,9 +179,7 @@ RSpec.describe ResqueSelfShutdown do
 
           expect(system_calls).to include(stop_runners_script)
           expect(system_calls.last).to eq('sudo shutdown -h now')
-
         end
-
       end
 
       describe 'elapsed time' do

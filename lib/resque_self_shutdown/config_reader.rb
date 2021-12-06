@@ -7,7 +7,7 @@ module ResqueSelfShutdown
 
         attr_reader :stop_runners_script,
             :process_running_regex, :process_working_regex,
-            :last_complete_file, :last_error_file,:workers_start_file,
+            :last_complete_file, :last_error_file,:workers_start_file, :server_start_file,
             :sleep_time, :sleep_time_during_shutdown, :shutdown_spec_str
 
         include InstanceMethods
@@ -33,9 +33,10 @@ module ResqueSelfShutdown
         @last_complete_file    = config_file_opts['last_complete_file']
         @last_error_file       = config_file_opts['last_error_file']
         @workers_start_file    = config_file_opts['workers_start_file']
+        @server_start_file     = config_file_opts['server_start_file']
         @shutdown_spec_str     = config_file_opts['self_shutdown_specification']
         @sleep_time            = (config_file_opts['sleep_time'] || 30).to_i
-        @sleep_time_during_shutdown = (config_file_opts['sleep_time_during_shutdown'] || 10).to_i
+        @sleep_time_during_shutdown = (config_file_opts['sleep_time_during_shutdown'] || 10)
       end
     end
 

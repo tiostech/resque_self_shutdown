@@ -101,8 +101,6 @@ module ResqueSelfShutdown
     end
 
 
-
-
     def num_running_processes
       command_output("pgrep -f -c '#{process_running_regex}'").lines.first.to_i
     end
@@ -112,21 +110,35 @@ module ResqueSelfShutdown
     end
 
 
-    def time_since_timestamp_file(file_path)
-      timestamp = File.read(file_path).chomp rescue nil
-      if timestamp.nil?
-        logger.warn("Could not read #{file_path}")
-        return nil
-      end
+    def time_since_timestamp_file(file_path, mode = :timestamp_file)
+      timestamp_time = case mode
+                       when :timestamp_file
 
-      begin
-        timestamp_time = Time.strptime(timestamp, '%Y-%m-%d %H:%M:%S %Z').utc
-      rescue => e
-        logger.warn("Could not parse timestamp #{timestamp} from #{file_path}: #{e.message}")
-        return nil
+                         timestamp = File.read(file_path).chomp rescue nil
+                         if timestamp.nil?
+                           logger.warn("Could not read #{file_path}")
+                           nil
+                         else
+                           begin
+                             Time.strptime(timestamp, '%Y-%m-%d %H:%M:%S %Z').utc
+                           rescue => e
+                             logger.warn("Could not parse timestamp #{timestamp} from #{file_path}: #{e.message}")
+                             nil
+                           end
+                         end
+                       when :mtime
+                         begin
+                           File.mtime(file_path)
+                         rescue => e
+                           logger.warn("Could not get mtime from #{file_path}: #{e.message}")
+                           nil
+                         end
+                       else
+                         nil
+                       end
+      unless timestamp_time.nil?
+        (Time.now.utc - timestamp_time).to_i
       end
-      return (Time.now.utc - timestamp_time).to_i
-
     end
 
     def time_since_latest_completion
@@ -134,7 +146,7 @@ module ResqueSelfShutdown
     end
 
     def time_since_workers_start
-      time_since_timestamp_file(workers_start_file)
+      time_since_timestamp_file(workers_start_file) || time_since_timestamp_file(server_start_file, :mtime)
     end
 
     def has_errors?
