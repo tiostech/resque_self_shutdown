@@ -16,6 +16,7 @@ module ResqueSelfShutdown
     #       "last_complete_file": [String] path to file that will be present when a worker finishes doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
     #       "last_error_file": [String] path to file that will be present when there is an error
     #       "workers_start_file": [String] path to file that will be present when workers start doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
+    #       "server_start_file": [String] path to file e.g. /ebsmount/www/READY.txt that is created when server initialization is complete.    
     #       "sleep_time": [int/String] number of seconds to sleep between checks
     #       "sleep_time_during_shutdown": [int/String] number of seconds to sleep between checks, after stopping workers and waiting for them to be done and then shutting down
     #       "self_shutdown_specification": [String] shutdown specification
@@ -128,7 +129,7 @@ module ResqueSelfShutdown
                          end
                        when :mtime
                          begin
-                           File.mtime(file_path)
+                           File.mtime(file_path).utc
                          rescue => e
                            logger.warn("Could not get mtime from #{file_path}: #{e.message}")
                            nil
@@ -136,8 +137,10 @@ module ResqueSelfShutdown
                        else
                          nil
                        end
-      unless timestamp_time.nil?
-        (Time.now.utc - timestamp_time).to_i
+      if timestamp_time.nil?
+        return nil
+      else
+        return (Time.now.utc - timestamp_time).to_i
       end
     end
 

@@ -32,6 +32,7 @@ Both sides are controlled by a single JSON configuration file that looks like th
   "stop_runners_script": "/path/to/stop/runners/script",
   "process_running_regex": "resque",
   "process_working_regex": "resque",
+  "server_start_file": "/ebsmount/www/READY.txt",
   "last_complete_file": "/path/to/log/latestJobCompleteUTC.txt",
   "last_error_file": "/path/to/log/latestJobErrorUTC.txt",
   "workers_start_file": "/path/to/log/workersStartedUTC.txt",
@@ -49,6 +50,7 @@ Here are explanations of the parameters:
 * "last_complete_file": [String] path to file that will be present when a worker finishes doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
 * "last_error_file": [String] path to file that will be present when there is an error
 * "workers_start_file": [String] path to file that will be present when workers start doing work.  Contents should be timestamp: %Y-%m-%d %H:%M:%S %Z
+* "server_start_file": [String] path to file e.g. /ebsmount/www/READY.txt that is created when server initialization is complete.  
 * "sleep_time": [int/String] number of seconds to sleep between checks
 * "sleep_time_during_shutdown": [int/String] number of seconds to sleep between checks, after stopping workers and waiting for them to be done and then shutting down
 * "self_shutdown_specification": [String] shutdown specification

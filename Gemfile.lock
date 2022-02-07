@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    resque_self_shutdown (0.1.4)
+    resque_self_shutdown (0.1.5)
 
 GEM
   remote: https://rubygems.org/
