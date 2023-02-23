@@ -161,7 +161,7 @@ RSpec.describe ResqueSelfShutdown do
           @num_working_processes = 0
           expect {
             shutdown2.loop!
-          }.to raise_error(StandardError, "   factor_")  # we stub above, and have it raise an error
+          }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
         end
       end
 
