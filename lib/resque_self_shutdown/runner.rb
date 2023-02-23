@@ -82,9 +82,8 @@ module ResqueSelfShutdown
               command_output("echo errors-present-but-continuing-with-shutdown") # used only for testing
             end
 
-            logger.info "Initiating Shutdown...."
-            command_output("sudo shutdown -h now")
-
+            do_shutdown
+            
             break
           end
 
@@ -94,8 +93,34 @@ module ResqueSelfShutdown
       end
 
     end
+    
 
     private
+
+    def do_shutdown
+      
+      if !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOS_ENDPOINT')
+        instance_id = get_instance_id
+        shutdown_cmd = "curl -s -d \"instance_id=#{instance_id}\" -X POST #{get_env_var('TIOS_AWS_URL')}/#{get_env_var('TAG_SELF_SHUTDOWN_TIOS_ENDPOINT')}"
+        logger.info "Initiating Shutdown via #{shutdown_cmd}"
+        command_output(shutdown_cmd)
+      else
+        logger.info "Initiating Shutdown via sudo shutdown -h now"
+        command_output("sudo shutdown -h now")
+      end
+      
+      
+      
+    end
+    
+    def get_instance_id
+      command_output("curl -s http://169.254.169.254/latest/meta-data/instance-id")
+    end
+
+    def get_env_var(varname)
+      val = ENV[varname]
+      return (val == '') ? nil : val
+    end
 
     def command_output(cmd)
       `#{cmd}`
