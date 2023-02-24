@@ -99,9 +99,9 @@ module ResqueSelfShutdown
 
     def do_shutdown
       
-      if !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOS_ENDPOINT')
+      if !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').nil?
         instance_id = get_instance_id
-        shutdown_cmd = "curl -s -d \"instance_id=#{instance_id}\" -X POST #{get_env_var('TIOS_AWS_URL')}/#{get_env_var('TAG_SELF_SHUTDOWN_TIOS_ENDPOINT')}"
+        shutdown_cmd = "curl -s -d \"instance_id=#{instance_id}\" -X POST #{get_env_var('TIOS_AWS_URL')}/#{get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT')}"
         logger.info "Initiating Shutdown via #{shutdown_cmd}"
         command_output(shutdown_cmd)
       else
