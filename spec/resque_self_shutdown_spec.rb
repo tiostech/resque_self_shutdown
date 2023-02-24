@@ -70,7 +70,7 @@ RSpec.describe ResqueSelfShutdown do
       @num_working_processes = 1
     
       allow(ENV).to receive(:[]).with('TIOS_AWS_URL').and_return(env_tios_aws_url)
-      allow(ENV).to receive(:[]).with('TAG_SELF_SHUTDOWN_TIOS_ENDPOINT').and_return(env_self_shutdown_tiosaws_endpoint)
+      allow(ENV).to receive(:[]).with('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').and_return(env_self_shutdown_tiosaws_endpoint)
     
       allow_any_instance_of(ResqueSelfShutdown::Runner).to receive(:get_instance_id).and_return(instance_id) # we stub here to block the extra system call
     
@@ -321,18 +321,18 @@ RSpec.describe ResqueSelfShutdown do
     end
   end
   
-  describe "when env vars for TIOS_AWS_URL and TAG_SELF_SHUTDOWN_TIOS_ENDPOINT are set" do
+  describe "when env vars for TIOS_AWS_URL and TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT are set" do
     let(:env_tios_aws_url) { "https://some-management.tioscapital.com"}
     let(:env_self_shutdown_tiosaws_endpoint) { "instances/self_shutdown_terminate" }
-    let(:expected_shutdown_cmd) {  "sudo shutdown -h now" }
+    let(:expected_shutdown_cmd) {  "curl -s -d \"instance_id=#{instance_id}\" -X POST #{env_tios_aws_url}/#{env_self_shutdown_tiosaws_endpoint}" }
     
     include_examples 'shutdown verifications'
   end
   
-  describe "when env var TIOS_AWS_URL is set but TAG_SELF_SHUTDOWN_TIOS_ENDPOINT is not set" do
+  describe "when env var TIOS_AWS_URL is set but TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT is not set" do
     let(:env_tios_aws_url) { "https://some-management.tioscapital.com"}
     let(:env_self_shutdown_tiosaws_endpoint) { nil }
-    let(:expected_shutdown_cmd) {  "curl -s -d \"instance_id=#{instance_id}\" -X POST #{env_tios_aws_url}/#{env_self_shutdown_tiosaws_endpoint}" }
+    let(:expected_shutdown_cmd) {  "sudo shutdown -h now" } 
 
     include_examples 'shutdown verifications'
   end
