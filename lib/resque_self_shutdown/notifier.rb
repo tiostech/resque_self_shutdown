@@ -35,7 +35,7 @@ module ResqueSelfShutdown
 
     def clear!
       [last_complete_file, last_error_file, workers_start_file].each do |f|
-        File.delete(f) if File.exists?(f)
+        File.delete(f) if File.exist?(f)
       end
     end
 

@@ -178,7 +178,7 @@ module ResqueSelfShutdown
     end
 
     def has_errors?
-      File.exists?(last_error_file)
+      File.exist?(last_error_file)
     end
 
 
