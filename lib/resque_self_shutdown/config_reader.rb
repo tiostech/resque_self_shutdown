@@ -18,7 +18,7 @@ module ResqueSelfShutdown
 
       def parse_config(config_file)
 
-        raise ArgumentError, "Configuration file #{config_file} does not exist" unless File.exists?(config_file)
+        raise ArgumentError, "Configuration file #{config_file} does not exist" unless File.exist?(config_file)
 
         begin
           config_file_opts = JSON.parse(File.read(config_file))
