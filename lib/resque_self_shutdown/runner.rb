@@ -72,7 +72,8 @@ module ResqueSelfShutdown
             command_output("#{stop_runners_script}")
 
             logger.info "Waiting for processes to be done"
-            while(num_running_processes > 0)
+            while num_running_processes > 0
+              logger.info("sleeping for #{sleep_time_during_shutdown}: #{num_running_processes} processes still running")
               sleep(sleep_time_during_shutdown)
             end
 
@@ -123,23 +124,28 @@ module ResqueSelfShutdown
     end
 
     def command_output(cmd)
-      `#{cmd}`
+      logger.info cmd
+      `#{cmd}`.tap { |r| logger.info r }
     end
 
 
     def num_running_processes
       if process_running_file_dir.nil?
-        command_output("pgrep -f -c '#{process_running_regex}'").lines.first.to_i
+        command_output("pgrep -fcx '#{process_running_regex}'").lines.first.to_i
       else
-        Dir.entries(process_running_file_dir).count { |f| f.match?(process_running_file_regex) }
+        Dir.entries(process_running_file_dir).count { |f| f.match?(process_running_file_regex) }.tap do |c|
+          logger.info "#{process_running_file_dir}/#{process_running_file_regex}:#{c}"
+        end
       end
     end
 
     def num_working_processes
       if process_working_file_dir.nil?
-        command_output("pgrep -f -c '#{process_working_regex}'").lines.first.to_i
+        command_output("pgrep -fcx '#{process_working_regex}'").lines.first.to_i
       else
-        Dir.entries(process_working_file_dir).count { |f| f.match?(process_working_file_regex) }
+        Dir.entries(process_working_file_dir).count { |f| f.match?(process_working_file_regex) }.tap do |c|
+          logger.info "#{process_running_file_dir}/#{process_running_file_regex}:#{c}"
+        end
       end
     end
 
