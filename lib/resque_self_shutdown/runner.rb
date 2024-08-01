@@ -128,11 +128,19 @@ module ResqueSelfShutdown
 
 
     def num_running_processes
-      command_output("pgrep -f -c '#{process_running_regex}'").lines.first.to_i
+      if process_running_file_dir.nil?
+        command_output("pgrep -f -c '#{process_running_regex}'").lines.first.to_i
+      else
+        Dir.entries(process_running_file_dir).count { |f| f.match?(process_running_file_regex) }
+      end
     end
 
     def num_working_processes
-      command_output("pgrep -f -c '#{process_working_regex}'").lines.first.to_i
+      if process_working_file_dir.nil?
+        command_output("pgrep -f -c '#{process_working_regex}'").lines.first.to_i
+      else
+        Dir.entries(process_working_file_dir).count { |f| f.match?(process_working_file_regex) }
+      end
     end
 
 
