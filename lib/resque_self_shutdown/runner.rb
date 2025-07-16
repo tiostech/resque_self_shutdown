@@ -98,24 +98,22 @@ module ResqueSelfShutdown
 
     private
 
+# the soultion to terminiate a pod is by using  --> kubectl delete pods $pod_name , for now we don't have this endpoint but we will feguire out how.
     def do_shutdown
       
       if !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').nil?
-        instance_id = get_instance_id
-        shutdown_cmd = "curl -s -d \"instance_id=#{instance_id}\" -X POST #{get_env_var('TIOS_AWS_URL')}/#{get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT')}"
+        pod_name = get_pod_name
+        shutdown_cmd = "curl -s -d \"pod_name=#{pod_name}\" -X POST #{get_env_var('TIOS_AWS_URL')}/#{get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT')}"
         logger.info "Initiating Shutdown via #{shutdown_cmd}"
         command_output(shutdown_cmd)
-      else
-        logger.info "Initiating Shutdown via sudo shutdown -h now"
-        command_output("sudo shutdown -h now")
       end
       
       
       
     end
     
-    def get_instance_id
-      command_output("curl -s http://169.254.169.254/latest/meta-data/instance-id")
+    def get_pod_name
+      command_output("echo $POD_NAME")
     end
 
     def get_env_var(varname)
