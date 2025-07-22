@@ -103,7 +103,7 @@ module ResqueSelfShutdown
       
       if !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').nil?
         pod_name = get_pod_name
-        shutdown_cmd = "curl -s -d \"pod_name=#{pod_name}\" -X POST #{get_env_var('TIOS_AWS_URL')}/#{get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT')}"
+        shutdown_cmd = "curl -X POST http://ipaddress:4567/pods_delete -d 'pod_name=#{pod_name}'"
         logger.info "Initiating Shutdown via #{shutdown_cmd}"
         command_output(shutdown_cmd)
       end
