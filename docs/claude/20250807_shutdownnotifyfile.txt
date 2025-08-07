@@ -26,3 +26,15 @@ Let's try replacing `create_shutdown_notification_file` with
 
 And then see if we can revert back some of the if/else changes you made in the unit tests.  You will also want to update
 the stubbing to handle your new command.
+
+***********************
+/compact
+
+***********************
+Take a look at the last commit that I made.  Some tests were broken, and I fixed them.  I also simplified the changes,
+so that it works within the current framework for how the shared_examples are working.
+You can see how I just updated the prior test cases with specifying the file to be nil, so that they can all
+share the same env lookup -- and no need for a special case with mock on top of mock (which wasn't working).
+If there is a principle you can discern from that, please update your CLAUDE.md docs to reflect it.  Try to phrase
+it in a generic way, to help with your approach to unit test authoring and debugging.
+

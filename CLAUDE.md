@@ -262,3 +262,38 @@ The shutdown mechanism has evolved to support multiple deployment environments:
    - Direct shutdown commands sometimes failed to properly terminate EC2 instances
    - TiosAWS API provides more reliable EC2 instance termination via proper AWS APIs
    - Allows for centralized logging and monitoring of instance terminations
+
+## Testing Guidelines
+
+### Shared Test Examples and Environment Variable Mocking
+
+When working with test cases that use `shared_examples` with environment variable dependencies:
+
+**Principle**: Use consistent variable binding in `let` blocks rather than complex mock overrides to ensure shared examples work cleanly across different test scenarios.
+
+**Best Practice**:
+- Define all environment variables as `let` variables in each test context
+- Set unused environment variables to `nil` explicitly in `let` blocks
+- Let the shared examples handle all environment variable mocking in one place
+- Avoid layering additional `before(:each)` blocks with conflicting ENV mocks
+
+**Example Pattern**:
+```ruby
+describe "when TIOS_AWS_URL is configured" do
+  let(:env_tios_aws_url) { "https://api.example.com" }
+  let(:env_self_shutdown_tiosaws_endpoint) { "terminate" }
+  let(:shutdown_notify_file) { nil }  # Explicitly nil for this scenario
+  
+  include_examples 'shared shutdown tests'
+end
+
+describe "when SHUTDOWN_NOTIFY_FILE is configured" do
+  let(:env_tios_aws_url) { "https://api.example.com" }
+  let(:env_self_shutdown_tiosaws_endpoint) { "terminate" }
+  let(:shutdown_notify_file) { "/path/to/notify.txt" }  # Takes precedence
+  
+  include_examples 'shared shutdown tests'
+end
+```
+
+This approach prevents "mock on top of mock" conflicts and allows the priority logic in the actual code to determine behavior, rather than trying to replicate that logic in the test setup.
