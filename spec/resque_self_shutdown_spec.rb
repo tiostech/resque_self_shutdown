@@ -71,6 +71,7 @@ RSpec.describe ResqueSelfShutdown do
     
       allow(ENV).to receive(:[]).with('TIOS_AWS_URL').and_return(env_tios_aws_url)
       allow(ENV).to receive(:[]).with('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').and_return(env_self_shutdown_tiosaws_endpoint)
+      allow(ENV).to receive(:[]).with('SHUTDOWN_NOTIFY_FILE').and_return(nil)
     
       allow_any_instance_of(ResqueSelfShutdown::Runner).to receive(:get_instance_id).and_return(instance_id) # we stub here to block the extra system call
     
@@ -79,11 +80,11 @@ RSpec.describe ResqueSelfShutdown do
         system_calls << cmd
 
         case(cmd)
-        when "pgrep -f -c '#{process_running_regex}'"
+        when "pgrep -fcx '#{process_running_regex}'"
 
           puts "running: #{@num_running_processes}"
           @num_running_processes.to_s
-        when "pgrep -f -c '#{process_working_regex}'"
+        when "pgrep -fcx '#{process_working_regex}'"
           puts "working: #{@num_working_processes}"
           @num_working_processes.to_s
 
@@ -136,6 +137,31 @@ RSpec.describe ResqueSelfShutdown do
         sleeps2 = []
         @num_running_processes = 1
         @num_working_processes = 1
+        
+        # Apply the same mocking to shutdown2 instance
+        allow(shutdown2).to receive(:get_instance_id).and_return(instance_id) if defined?(instance_id)
+        
+        allow(shutdown2).to receive(:command_output) do |cmd|
+          system_calls << cmd
+          
+          case(cmd)
+          when "pgrep -fcx '#{process_running_regex}'"
+            @num_running_processes.to_s
+          when "pgrep -fcx '#{process_working_regex}'"
+            @num_working_processes.to_s
+          when "echo errors-present-but-continuing-with-shutdown"
+            "errors-present-but-continuing-with-shutdown"
+          when "curl -s http://169.254.169.254/latest/meta-data/instance-id"
+            instance_id
+          when "curl -s -d \"instance_id=#{instance_id}\" -X POST #{env_tios_aws_url}/#{env_self_shutdown_tiosaws_endpoint}"
+            "Going down via #{cmd}"
+            raise StandardError, "ShutDown Via: #{cmd}"
+          when "sudo shutdown -h now"
+            "Going down"
+            raise StandardError, "ShutDown Via: #{cmd}"  # to help with testing, do this
+          end
+        end
+        
         allow(shutdown2).to receive(:sleep) do |stime|
           sleeps2 << stime
           if stime == sleep_time_during_shutdown
@@ -159,9 +185,15 @@ RSpec.describe ResqueSelfShutdown do
 
           # suppose nothign is working.  It doesn't finish, but dies for some reason.  Now it's stale the prework should trigger shutdown
           @num_working_processes = 0
-          expect {
-            shutdown2.loop!
-          }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+          if expected_shutdown_cmd.nil?
+            expect {
+              shutdown2.loop!
+            }.not_to raise_error
+          else
+            expect {
+              shutdown2.loop!
+            }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+          end
         end
       end
 
@@ -175,13 +207,24 @@ RSpec.describe ResqueSelfShutdown do
             File.delete(workers_start_file) rescue nil
             FileUtils.touch(server_start_file, :mtime => (Time.now.utc - idle_seconds))
 
-            expect {
-              shutdown.loop!
-              # it should eventually shut down
-            }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+            if expected_shutdown_cmd.nil?
+              # For SHUTDOWN_NOTIFY_FILE case, expect normal completion, not an error
+              expect {
+                shutdown.loop!
+                # it should eventually shut down
+              }.not_to raise_error
+            else
+              # For other shutdown methods, expect error to be raised
+              expect {
+                shutdown.loop!
+                # it should eventually shut down
+              }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+            end
 
             expect(system_calls).to include(stop_runners_script)
-            expect(system_calls.last).to eq(expected_shutdown_cmd)
+            if !expected_shutdown_cmd.nil?
+              expect(system_calls.last).to eq(expected_shutdown_cmd)
+            end
           end
         end
 
@@ -191,13 +234,24 @@ RSpec.describe ResqueSelfShutdown do
             File.delete(last_complete_file) rescue nil
             File.open(workers_start_file, 'wb') {|f| f.puts (Time.now.utc - idle_seconds).strftime('%Y-%m-%d %H:%M:%S %Z') }
 
-            expect {
-              shutdown.loop!
-              # it should eventually shut down
-            }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+            if expected_shutdown_cmd.nil?
+              # For SHUTDOWN_NOTIFY_FILE case, expect normal completion, not an error
+              expect {
+                shutdown.loop!
+                # it should eventually shut down
+              }.not_to raise_error
+            else
+              # For other shutdown methods, expect error to be raised
+              expect {
+                shutdown.loop!
+                # it should eventually shut down
+              }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+            end
 
             expect(system_calls).to include(stop_runners_script)
-            expect(system_calls.last).to eq(expected_shutdown_cmd)
+            if !expected_shutdown_cmd.nil?
+              expect(system_calls.last).to eq(expected_shutdown_cmd)
+            end
           end
         end
 
@@ -212,13 +266,22 @@ RSpec.describe ResqueSelfShutdown do
               File.delete(last_complete_file) rescue nil
               File.open(workers_start_file, 'wb') { |f| f.puts (Time.now.utc - idle_seconds).strftime('%Y-%m-%d %H:%M:%S %Z') }
 
-              expect {
-                shutdown.loop!
-                # it should eventually shut down
-              }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}") # we stub above, and have it raise an error
+              if expected_shutdown_cmd.nil?
+                expect {
+                  shutdown.loop!
+                  # it should eventually shut down
+                }.not_to raise_error
+              else
+                expect {
+                  shutdown.loop!
+                  # it should eventually shut down
+                }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}") # we stub above, and have it raise an error
+              end
 
               expect(system_calls).to include(stop_runners_script)
-              expect(system_calls.last).to eq(expected_shutdown_cmd)
+              if !expected_shutdown_cmd.nil?
+                expect(system_calls.last).to eq(expected_shutdown_cmd)
+              end
 
             end
 
@@ -238,13 +301,24 @@ RSpec.describe ResqueSelfShutdown do
             File.open(last_complete_file, 'wb') {|f| f.puts (Time.now.utc - idle_seconds).strftime('%Y-%m-%d %H:%M:%S %Z') }
             File.open(workers_start_file, 'wb') {|f| f.puts (Time.now.utc - worker_start_sec).strftime('%Y-%m-%d %H:%M:%S %Z') }
 
-            expect {
-              shutdown.loop!
-              # it should eventually shut down
-            }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+            if expected_shutdown_cmd.nil?
+              # For SHUTDOWN_NOTIFY_FILE case, expect normal completion, not an error
+              expect {
+                shutdown.loop!
+                # it should eventually shut down
+              }.not_to raise_error
+            else
+              # For other shutdown methods, expect error to be raised
+              expect {
+                shutdown.loop!
+                # it should eventually shut down
+              }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+            end
 
             expect(system_calls).to include(stop_runners_script)
-            expect(system_calls.last).to eq(expected_shutdown_cmd)
+            if !expected_shutdown_cmd.nil?
+              expect(system_calls.last).to eq(expected_shutdown_cmd)
+            end
           end
 
         end
@@ -264,13 +338,24 @@ RSpec.describe ResqueSelfShutdown do
             File.open(last_complete_file, 'wb') {|f| f.puts (Time.now.utc - idle_seconds).strftime('%Y-%m-%d %H:%M:%S %Z') }
             File.open(last_error_file, 'wb') {|f| f.puts (Time.now.utc - idle_seconds).strftime('%Y-%m-%d %H:%M:%S %Z') }
 
-            expect {
-              shutdown.loop!
-              # it should eventually shut down
-            }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+            if expected_shutdown_cmd.nil?
+              # For SHUTDOWN_NOTIFY_FILE case, expect normal completion, not an error
+              expect {
+                shutdown.loop!
+                # it should eventually shut down
+              }.not_to raise_error
+            else
+              # For other shutdown methods, expect error to be raised
+              expect {
+                shutdown.loop!
+                # it should eventually shut down
+              }.to raise_error(StandardError, "ShutDown Via: #{expected_shutdown_cmd}")  # we stub above, and have it raise an error
+            end
 
-            expect(system_calls[-2]).to eq('echo errors-present-but-continuing-with-shutdown')
-            expect(system_calls.last).to eq(expected_shutdown_cmd)
+            expect(system_calls).to include('echo errors-present-but-continuing-with-shutdown')
+            if !expected_shutdown_cmd.nil?
+              expect(system_calls.last).to eq(expected_shutdown_cmd)
+            end
           end
 
         end
@@ -337,6 +422,128 @@ RSpec.describe ResqueSelfShutdown do
     include_examples 'shutdown verifications'
   end
   
+  describe "when SHUTDOWN_NOTIFY_FILE environment variable is set" do
+    let(:env_tios_aws_url) { "https://some-management.tioscapital.com"}
+    let(:env_self_shutdown_tiosaws_endpoint) { "instances/self_shutdown_terminate" }
+    let(:shutdown_notify_file) { "#{temp_dir}/shutdown_notify.txt" }
+    let(:expected_shutdown_cmd) { nil } # No system command expected, just file creation
+    
+    before(:each) do
+      allow(ENV).to receive(:[]).with('SHUTDOWN_NOTIFY_FILE').and_return(shutdown_notify_file)
+      # Still mock other environment variables but they should not be used since SHUTDOWN_NOTIFY_FILE takes precedence
+      allow(ENV).to receive(:[]).with('TIOS_AWS_URL').and_return(env_tios_aws_url)
+      allow(ENV).to receive(:[]).with('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').and_return(env_self_shutdown_tiosaws_endpoint)
+    end
+    
+    include_examples 'shutdown verifications'
+    
+    describe "notification file creation behavior" do
+      
+      let(:shutdown_spec) { 'idlePreWork:10800+300,idlePostWork:730+10' }
+      
+      before(:each) do
+        File.delete(workers_start_file) rescue nil
+        File.delete(last_complete_file) rescue nil
+        File.delete(last_error_file) rescue nil
+        File.delete(server_start_file) rescue nil
+        File.delete(shutdown_notify_file) rescue nil
+        
+        @num_running_processes = 1
+        @num_working_processes = 1
+        
+        allow_any_instance_of(ResqueSelfShutdown::Runner).to receive(:command_output) do |obj,cmd|
+          system_calls << cmd
+          
+          case(cmd)
+          when "pgrep -fcx '#{process_running_regex}'"
+            @num_running_processes.to_s
+          when "pgrep -fcx '#{process_working_regex}'"
+            @num_working_processes.to_s
+          when "echo errors-present-but-continuing-with-shutdown"
+            "errors-present-but-continuing-with-shutdown"
+          else
+            cmd
+          end
+        end
+        
+        allow(shutdown).to receive(:sleep) do |stime|
+          sleep_times << stime
+          # After a couple sleeps, we are down to 0 working
+          if sleep_times.select {|s| s == sleep_time}.count >= 2
+            @num_running_processes = 1
+            @num_working_processes = 0
+          end
+          # After a couple of sleeps after post-stop-workers, we are down to 0 running, 0 working
+          if sleep_times.select {|s| s == sleep_time_during_shutdown }.count >= 2
+            @num_running_processes = 0
+            @num_working_processes = 0
+          end
+        end
+      end
+      
+      it 'creates notification file with timestamp when shutdown conditions are met' do
+        idle_seconds = 825
+        
+        pretend_now_is(DateTime.parse('2018-07-25 11:16:00 EDT')) do
+          File.open(last_complete_file, 'wb') {|f| f.puts (Time.now.utc - idle_seconds).strftime('%Y-%m-%d %H:%M:%S %Z') }
+          File.open(workers_start_file, 'wb') {|f| f.puts (Time.now.utc - 1802).strftime('%Y-%m-%d %H:%M:%S %Z') }
+          
+          # Shutdown should complete normally without raising an error (no system shutdown command)
+          expect { shutdown.loop! }.not_to raise_error
+          
+          # Verify the notification file was created
+          expect(File.exist?(shutdown_notify_file)).to be true
+          
+          # Verify the file contains a properly formatted timestamp
+          file_content = File.read(shutdown_notify_file).strip
+          expect(file_content).to match(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \w+/)
+          
+          # Verify the timestamp is reasonably current (within last few seconds)
+          parsed_time = Time.strptime(file_content, '%Y-%m-%d %H:%M:%S %Z')
+          expect(parsed_time).to be_within(10).of(Time.now)
+          
+          # Verify stop script was still called
+          expect(system_calls).to include(stop_runners_script)
+        end
+      end
+      
+      it 'creates parent directories if they do not exist' do
+        nested_notify_file = "#{temp_dir}/deep/nested/path/shutdown_notify.txt"
+        allow(ENV).to receive(:[]).with('SHUTDOWN_NOTIFY_FILE').and_return(nested_notify_file)
+        
+        idle_seconds = 825
+        
+        pretend_now_is(DateTime.parse('2018-07-25 11:16:00 EDT')) do
+          File.open(last_complete_file, 'wb') {|f| f.puts (Time.now.utc - idle_seconds).strftime('%Y-%m-%d %H:%M:%S %Z') }
+          File.open(workers_start_file, 'wb') {|f| f.puts (Time.now.utc - 1802).strftime('%Y-%m-%d %H:%M:%S %Z') }
+          
+          expect { shutdown.loop! }.not_to raise_error
+          
+          expect(File.exist?(nested_notify_file)).to be true
+          expect(File.read(nested_notify_file).strip).to match(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \w+/)
+        end
+      end
+      
+      it 'still handles error files but proceeds with shutdown' do
+        idle_seconds = 825
+        
+        pretend_now_is(DateTime.parse('2018-07-25 11:16:00 EDT')) do
+          File.open(workers_start_file, 'wb') {|f| f.puts 'anything' }
+          File.open(last_complete_file, 'wb') {|f| f.puts (Time.now.utc - idle_seconds).strftime('%Y-%m-%d %H:%M:%S %Z') }
+          File.open(last_error_file, 'wb') {|f| f.puts (Time.now.utc - idle_seconds).strftime('%Y-%m-%d %H:%M:%S %Z') }
+          
+          expect { shutdown.loop! }.not_to raise_error
+          
+          # Should still create the notification file despite errors
+          expect(File.exist?(shutdown_notify_file)).to be true
+          
+          # Should still log that errors were present
+          expect(system_calls).to include('echo errors-present-but-continuing-with-shutdown')
+        end
+      end
+    end
+  end
+  
   describe '#get_env_var' do
     it 'returns the environment var' do
       allow(ENV).to receive(:[]).with('FOO').and_return("123")
@@ -359,6 +566,49 @@ RSpec.describe ResqueSelfShutdown do
       sd = ResqueSelfShutdown::Runner.new(config_file)
       expect(sd).to receive(:command_output).with("curl -s http://169.254.169.254/latest/meta-data/instance-id").and_return(instance_id)
       expect(sd.send(:get_instance_id)).to eq(instance_id)
+    end
+  end
+  
+  describe '#create_shutdown_notification_file' do
+    it 'creates file with current timestamp in system timezone' do
+      test_file = "#{temp_dir}/test_shutdown_notify.txt"
+      sd = ResqueSelfShutdown::Runner.new(config_file)
+      
+      # Ensure file doesn't exist initially
+      expect(File.exist?(test_file)).to be false
+      
+      # Create the notification file
+      sd.send(:create_shutdown_notification_file, test_file)
+      
+      # Verify file was created
+      expect(File.exist?(test_file)).to be true
+      
+      # Verify file content format
+      content = File.read(test_file).strip
+      expect(content).to match(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \w+/)
+      
+      # Verify timestamp is current (within last 5 seconds)
+      parsed_time = Time.strptime(content, '%Y-%m-%d %H:%M:%S %Z')
+      expect(parsed_time).to be_within(5).of(Time.now)
+    end
+    
+    it 'creates parent directories when they do not exist' do
+      nested_test_file = "#{temp_dir}/deeply/nested/path/shutdown_notify.txt"
+      sd = ResqueSelfShutdown::Runner.new(config_file)
+      
+      # Ensure parent directories don't exist
+      expect(File.exist?(File.dirname(nested_test_file))).to be false
+      
+      # Create the notification file
+      sd.send(:create_shutdown_notification_file, nested_test_file)
+      
+      # Verify file and parent directories were created
+      expect(File.exist?(nested_test_file)).to be true
+      expect(File.directory?(File.dirname(nested_test_file))).to be true
+      
+      # Verify file content
+      content = File.read(nested_test_file).strip
+      expect(content).to match(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \w+/)
     end
   end
   

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    resque_self_shutdown (0.1.8)
+    resque_self_shutdown (0.1.11)
 
 GEM
   remote: https://rubygems.org/
@@ -34,4 +34,4 @@ DEPENDENCIES
   time-warp (~> 1.0)
 
 BUNDLED WITH
-   1.16.6
+   1.17.3

@@ -1,0 +1,15 @@
+Great.  Now that you have documented how this system works, I would like to expand to provide another way that we can
+shut down the server.  The intended use of this is for when we are running this within a container, as part of the
+entry point command.  In containers, we can't do a `shutdown -h now`, and we also don't want to try to talk to k8s
+to terminate the container (because we need a clean shutdown and no jobs running).  We also don't want the container
+thinking that we had an unclean exit from the entry point command.
+
+Please enhance the way that we shutdown to handle another case.  If the environment variable SHUTDOWN_NOTIFY_FILE
+is present and not empty, then create that file with the current system timestamp (in the system timezone) as the
+contents of the file.  Otherwise, proceed with the normal shutdown handling.
+
+Please add the code for that, as well as unit tests for handling it.
+
+***********************
+
+Please also update the README.md with this new option information

@@ -207,9 +207,20 @@ When shutdown conditions are met (runner.rb:70-88):
 
 The actual shutdown is handled by `do_shutdown` method (runner.rb:101-115):
 
-**Primary Method - TiosAWS API** (runner.rb:103-107):
+**Primary Method - Container Notification File** (runner.rb:103-106):
 ```ruby
-if !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').nil?
+shutdown_notify_file = get_env_var('SHUTDOWN_NOTIFY_FILE')
+if !shutdown_notify_file.nil?
+  create_shutdown_notification_file(shutdown_notify_file)
+```
+- Creates timestamped file when `SHUTDOWN_NOTIFY_FILE` environment variable is set
+- Writes current system time in local timezone: `%Y-%m-%d %H:%M:%S %Z`
+- Intended for containerized environments where direct shutdown is not possible
+- Container entry point can monitor this file to cleanly exit without jobs running
+
+**Secondary Method - TiosAWS API** (runner.rb:107-111):
+```ruby
+elsif !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').nil?
   instance_id = get_instance_id  # curl http://169.254.169.254/latest/meta-data/instance-id
   shutdown_cmd = "curl -s -d \"instance_id=#{instance_id}\" -X POST #{TIOS_AWS_URL}/#{TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT}"
   command_output(shutdown_cmd)
@@ -218,7 +229,7 @@ if !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_
 - Makes POST request to TiosAWS API with instance_id
 - TiosAWS API enqueues proper EC2 instance termination
 
-**Fallback Method** (runner.rb:108-111):
+**Fallback Method - Direct Shutdown** (runner.rb:112-115):
 ```ruby
 else
   logger.info "Initiating Shutdown via sudo shutdown -h now" 
@@ -226,7 +237,7 @@ else
 end
 ```
 - Direct system shutdown command
-- Used when TiosAWS environment variables not configured
+- Used when neither container nor TiosAWS methods are configured
 
 ### Process Monitoring Details
 
@@ -240,7 +251,14 @@ end
 
 ### Evolution Notes
 
-The shutdown mechanism evolved from direct `shutdown -h now` to the TiosAWS API approach because:
-- Direct shutdown commands sometimes failed to properly terminate EC2 instances
-- TiosAWS API provides more reliable EC2 instance termination via proper AWS APIs
-- Allows for centralized logging and monitoring of instance terminations
+The shutdown mechanism has evolved to support multiple deployment environments:
+
+1. **Container Environments**: Added `SHUTDOWN_NOTIFY_FILE` for containerized deployments where:
+   - Direct `shutdown -h now` is not possible within containers
+   - Communication with K8s APIs is undesirable (requires clean exit)
+   - Container entry point can monitor notification file for graceful termination
+
+2. **EC2 Environments**: Evolved from direct `shutdown -h now` to TiosAWS API because:
+   - Direct shutdown commands sometimes failed to properly terminate EC2 instances
+   - TiosAWS API provides more reliable EC2 instance termination via proper AWS APIs
+   - Allows for centralized logging and monitoring of instance terminations
