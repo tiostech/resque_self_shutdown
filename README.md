@@ -116,6 +116,43 @@ bundle exec self_shutdown stop
 
 The psline changes to "ResqueSelfShutdownMonitor::running", which we use for killing existing runners.
 
+## Shutdown Methods
+
+ResqueSelfShutdown supports multiple shutdown methods depending on your deployment environment:
+
+### Container/Kubernetes Environments
+
+For containerized deployments where direct system shutdown is not possible, set the `SHUTDOWN_NOTIFY_FILE` environment variable:
+
+```bash
+export SHUTDOWN_NOTIFY_FILE="/path/to/shutdown_notification.txt"
+bundle exec self_shutdown -c /path/to/shutdownconfig.json start
+```
+
+When shutdown conditions are met, instead of executing a system shutdown command, the monitor will create the specified file with a timestamp. Your container entry point can monitor this file to gracefully terminate the container:
+
+```bash
+# Container entry point example
+while [ ! -f /path/to/shutdown_notification.txt ]; do
+  sleep 5
+done
+echo "Shutdown notification received, terminating container"
+exit 0
+```
+
+### EC2/Direct Server Environments
+
+The system will automatically choose the appropriate method based on available environment variables:
+
+1. **TiosAWS API** (if `TIOS_AWS_URL` and `TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT` are set):
+   ```bash
+   export TIOS_AWS_URL="https://your-management-api.com"
+   export TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT="instances/self_shutdown_terminate"
+   ```
+
+2. **Direct System Shutdown** (fallback):
+   Uses `sudo shutdown -h now` when no other method is configured.
+
 Note for development mode:
 
 ```bash

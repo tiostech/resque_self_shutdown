@@ -1,5 +1,6 @@
 require 'logger'
 require 'time'
+require 'fileutils'
 
 module ResqueSelfShutdown
   class Runner
@@ -100,7 +101,12 @@ module ResqueSelfShutdown
 
     def do_shutdown
       
-      if !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').nil?
+      shutdown_notify_file = get_env_var('SHUTDOWN_NOTIFY_FILE')
+      if !shutdown_notify_file.nil?
+        shutdown_cmd = "mkdir -p #{File.dirname(shutdown_notify_file)} && date +'%Y-%m-%d %H:%M:%S %Z' > #{shutdown_notify_file}"
+        logger.info "Initiating Shutdown via #{shutdown_cmd}"
+        command_output(shutdown_cmd)
+      elsif !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').nil?
         instance_id = get_instance_id
         shutdown_cmd = "curl -s -d \"instance_id=#{instance_id}\" -X POST #{get_env_var('TIOS_AWS_URL')}/#{get_env_var('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT')}"
         logger.info "Initiating Shutdown via #{shutdown_cmd}"
@@ -109,8 +115,6 @@ module ResqueSelfShutdown
         logger.info "Initiating Shutdown via sudo shutdown -h now"
         command_output("sudo shutdown -h now")
       end
-      
-      
       
     end
     
