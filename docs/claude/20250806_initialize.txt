@@ -1,0 +1,21 @@
+/init
+
+***********************
+summarize this codebase
+
+***********************
+That's right.  What happens is that some of our other Ruby-based projects uses Resque for background jobs, and that system will use this gem to post notices to different files with notify_worker_start! notify_worker_complete!, and notify_error! so that then the runner can
+monitor the system for when it has been idle for long enough that it can shut down (but also wait and monitor until it is sure nothing new has been picked up).  Please discern that and add that to your docs
+
+***********************
+Are you able to discern what the shutdown spec looks like, provide examples and documentation?
+
+***********************
+Add some documentation to CLAUDE.md on how the shutdown monitoring actually happens.
+ - Document what happens in the monitoring loop (and also, where that is defined in the code)
+ - How does it stop workers?
+ - How does the "shutdown" happen?  (hint: it hits this TIOS_AWS_URL/TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT which is our "tiosaws" API that manages shutdown of instances.
+   We originally just did `shutdown -h now` but sometimes instances would not properly terminate with it.  So now, we hit our API which
+   will enqueue EC2 instance terminations.
+
+Please document this carefully in CLAUDE.md, as we will expand the functionality.
