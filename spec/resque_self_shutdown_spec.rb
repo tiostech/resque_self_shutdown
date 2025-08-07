@@ -71,8 +71,8 @@ RSpec.describe ResqueSelfShutdown do
     
       allow(ENV).to receive(:[]).with('TIOS_AWS_URL').and_return(env_tios_aws_url)
       allow(ENV).to receive(:[]).with('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').and_return(env_self_shutdown_tiosaws_endpoint)
-      allow(ENV).to receive(:[]).with('SHUTDOWN_NOTIFY_FILE').and_return(nil)
-    
+      allow(ENV).to receive(:[]).with('SHUTDOWN_NOTIFY_FILE').and_return(shutdown_notify_file)
+
       allow_any_instance_of(ResqueSelfShutdown::Runner).to receive(:get_instance_id).and_return(instance_id) # we stub here to block the extra system call
     
       allow_any_instance_of(ResqueSelfShutdown::Runner).to receive(:command_output) do |obj,cmd|
@@ -140,34 +140,7 @@ RSpec.describe ResqueSelfShutdown do
         sleeps2 = []
         @num_running_processes = 1
         @num_working_processes = 1
-        
-        # Apply the same mocking to shutdown2 instance
-        allow(shutdown2).to receive(:get_instance_id).and_return(instance_id) if defined?(instance_id)
-        
-        allow(shutdown2).to receive(:command_output) do |cmd|
-          system_calls << cmd
-          
-          case(cmd)
-          when "pgrep -fcx '#{process_running_regex}'"
-            @num_running_processes.to_s
-          when "pgrep -fcx '#{process_working_regex}'"
-            @num_working_processes.to_s
-          when "echo errors-present-but-continuing-with-shutdown"
-            "errors-present-but-continuing-with-shutdown"
-          when "curl -s http://169.254.169.254/latest/meta-data/instance-id"
-            instance_id
-          when "curl -s -d \"instance_id=#{instance_id}\" -X POST #{env_tios_aws_url}/#{env_self_shutdown_tiosaws_endpoint}"
-            "Going down via #{cmd}"
-            raise StandardError, "ShutDown Via: #{cmd}"
-          when "sudo shutdown -h now"
-            "Going down"
-            raise StandardError, "ShutDown Via: #{cmd}"  # to help with testing, do this
-          when /mkdir -p .* && date .* > .*/
-            "Going down via #{cmd}"
-            raise StandardError, "ShutDown Via: #{cmd}"
-          end
-        end
-        
+
         allow(shutdown2).to receive(:sleep) do |stime|
           sleeps2 << stime
           if stime == sleep_time_during_shutdown
@@ -356,6 +329,7 @@ RSpec.describe ResqueSelfShutdown do
   describe "when env vars for TIOS_AWS_URL and TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT are set" do
     let(:env_tios_aws_url) { "https://some-management.tioscapital.com"}
     let(:env_self_shutdown_tiosaws_endpoint) { "instances/self_shutdown_terminate" }
+    let(:shutdown_notify_file) { nil }
     let(:expected_shutdown_cmd) {  "curl -s -d \"instance_id=#{instance_id}\" -X POST #{env_tios_aws_url}/#{env_self_shutdown_tiosaws_endpoint}" }
     
     include_examples 'shutdown verifications'
@@ -364,7 +338,8 @@ RSpec.describe ResqueSelfShutdown do
   describe "when env var TIOS_AWS_URL is set but TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT is not set" do
     let(:env_tios_aws_url) { "https://some-management.tioscapital.com"}
     let(:env_self_shutdown_tiosaws_endpoint) { nil }
-    let(:expected_shutdown_cmd) {  "sudo shutdown -h now" } 
+    let(:shutdown_notify_file) { nil }
+    let(:expected_shutdown_cmd) {  "sudo shutdown -h now" }
 
     include_examples 'shutdown verifications'
   end
@@ -374,15 +349,7 @@ RSpec.describe ResqueSelfShutdown do
     let(:env_self_shutdown_tiosaws_endpoint) { "instances/self_shutdown_terminate" }
     let(:shutdown_notify_file) { "#{temp_dir}/shutdown_notify.txt" }
     let(:expected_shutdown_cmd) { "mkdir -p #{File.dirname(shutdown_notify_file)} && date +'%Y-%m-%d %H:%M:%S %Z' > #{shutdown_notify_file}" }
-    
-    before(:each) do
-      # Need to set up the ENV mock first, before the shared examples setup
-      allow(ENV).to receive(:[]).and_call_original
-      allow(ENV).to receive(:[]).with('SHUTDOWN_NOTIFY_FILE').and_return(shutdown_notify_file)
-      allow(ENV).to receive(:[]).with('TIOS_AWS_URL').and_return(nil)  # Override to ensure SHUTDOWN_NOTIFY_FILE takes precedence
-      allow(ENV).to receive(:[]).with('TAG_SELF_SHUTDOWN_TIOSAWS_ENDPOINT').and_return(nil)
-    end
-    
+
     include_examples 'shutdown verifications'
     
   end
