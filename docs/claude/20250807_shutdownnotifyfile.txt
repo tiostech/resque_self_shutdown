@@ -13,3 +13,16 @@ Please add the code for that, as well as unit tests for handling it.
 ***********************
 
 Please also update the README.md with this new option information
+
+
+***********************
+Let's try changing things up a bit, so that we don't have to do so much work on the unit tests.  The unit tests
+are stubbing the system call, and a lot of things depend on that.  If you look at your changes (see most recent commit),
+you can see that you had to add a lot of if/else blocks to deal with the fact that when we're using the SHUTDOWN_NOTIFY_FILE
+file, we don't actually have a system command doing the shutdown.
+
+Let's try replacing `create_shutdown_notification_file` with
+  command_output("date +'%Y-%m-%d %H:%M:%S %Z' > #{shutdown_notify_file}")
+
+And then see if we can revert back some of the if/else changes you made in the unit tests.  You will also want to update
+the stubbing to handle your new command.
