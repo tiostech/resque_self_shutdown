@@ -92,7 +92,7 @@ RSpec.describe ResqueSelfShutdown do
           puts "detected errors but continuing on"
           "errors-present-but-continuing-with-shutdown"
 
-        when "curl -s http://169.254.169.254/latest/meta-data/instance-id"
+        when /curl .* http:\/\/169\.254\.169\.254\/latest\/meta-data\/instance-id/
           instance_id
         
         
@@ -372,10 +372,37 @@ RSpec.describe ResqueSelfShutdown do
   end
   
   describe '#get_instance_id' do
-    it 'gets the instance id via AWS self-check url' do
-      sd = ResqueSelfShutdown::Runner.new(config_file)
-      expect(sd).to receive(:command_output).with("curl -s http://169.254.169.254/latest/meta-data/instance-id").and_return(instance_id)
+    let(:instance_id) { 'i-0abc123def4567890' }
+    let(:v1_cmd) { "curl -s --fail --connect-timeout 2 --max-time 5 http://169.254.169.254/latest/meta-data/instance-id" }
+    let(:v2_cmd) do
+      "TOKEN=$(curl -s --fail --connect-timeout 2 --max-time 5 -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60') && " \
+      "curl -s --fail --connect-timeout 2 --max-time 5 http://169.254.169.254/latest/meta-data/instance-id -H \"X-aws-ec2-metadata-token: $TOKEN\""
+    end
+    let(:sd) { ResqueSelfShutdown::Runner.new(config_file) }
+
+    it 'gets the instance id via IMDSv1 when that works (Ubuntu 20)' do
+      expect(sd).to receive(:command_output).with(v1_cmd).and_return("#{instance_id}\n")
+      expect(sd).not_to receive(:command_output).with(v2_cmd)
       expect(sd.send(:get_instance_id)).to eq(instance_id)
+    end
+
+    it 'falls back to IMDSv2 when IMDSv1 returns nothing (Ubuntu 24)' do
+      expect(sd).to receive(:command_output).with(v1_cmd).and_return("")
+      expect(sd).to receive(:command_output).with(v2_cmd).and_return("#{instance_id}\n")
+      expect(sd.send(:get_instance_id)).to eq(instance_id)
+    end
+
+    it 'falls back to IMDSv2 when IMDSv1 returns an error body instead of an instance id' do
+      expect(sd).to receive(:command_output).with(v1_cmd).and_return("<?xml version=\"1.0\"?><Error><Code>401</Code></Error>")
+      expect(sd).to receive(:command_output).with(v2_cmd).and_return(instance_id)
+      expect(sd.send(:get_instance_id)).to eq(instance_id)
+    end
+
+    it 'returns an empty string and logs an error when neither version works' do
+      expect(sd).to receive(:command_output).with(v1_cmd).and_return("")
+      expect(sd).to receive(:command_output).with(v2_cmd).and_return("")
+      expect(sd.logger).to receive(:error).with(/Could not determine instance id/)
+      expect(sd.send(:get_instance_id)).to eq('')
     end
   end
   
