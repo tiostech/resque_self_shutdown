@@ -118,8 +118,37 @@ module ResqueSelfShutdown
       
     end
     
+    IMDS_URL = "http://169.254.169.254/latest".freeze
+    IMDS_CURL_OPTS = "-s --fail --connect-timeout 2 --max-time 5".freeze
+    INSTANCE_ID_REGEX = /\Ai-[0-9a-f]+\z/i.freeze
+
+    # Ubuntu 20 instances allow IMDSv1 (an unauthenticated GET).  Instances launched from the
+    # Ubuntu 24 AMIs require IMDSv2, because those AMIs are registered with imds-support=v2.0,
+    # which forces HttpTokens=required -- the GET must carry a session token or it gets a 401.
+    # Try v1 first so behaviour on the existing Ubuntu 20 fleet is unchanged, then fall back to v2.
     def get_instance_id
-      command_output("curl -s http://169.254.169.254/latest/meta-data/instance-id")
+      instance_id = get_instance_id_imds_v1
+      return instance_id if instance_id.match?(INSTANCE_ID_REGEX)
+
+      logger.info "IMDSv1 lookup did not return an instance id; retrying with IMDSv2 token"
+      instance_id = get_instance_id_imds_v2
+      return instance_id if instance_id.match?(INSTANCE_ID_REGEX)
+
+      logger.error "Could not determine instance id via IMDSv1 or IMDSv2"
+      instance_id
+    end
+
+    def get_instance_id_imds_v1
+      command_output("curl #{IMDS_CURL_OPTS} #{IMDS_URL}/meta-data/instance-id").to_s.strip
+    end
+
+    # The token exchange is done in a single shell command so that the (short-lived) token
+    # stays inside the subshell rather than being logged or interpolated back into Ruby.
+    # If the token request fails the && short-circuits and the output is empty.
+    def get_instance_id_imds_v2
+      cmd = "TOKEN=$(curl #{IMDS_CURL_OPTS} -X PUT #{IMDS_URL}/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60') && " \
+            "curl #{IMDS_CURL_OPTS} #{IMDS_URL}/meta-data/instance-id -H \"X-aws-ec2-metadata-token: $TOKEN\""
+      command_output(cmd).to_s.strip
     end
 
     def get_env_var(varname)

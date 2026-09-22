@@ -229,6 +229,27 @@ elsif !get_env_var('TIOS_AWS_URL').nil? && !get_env_var('TAG_SELF_SHUTDOWN_TIOSA
 - Makes POST request to TiosAWS API with instance_id
 - TiosAWS API enqueues proper EC2 instance termination
 
+**Instance ID Lookup - IMDSv1 with IMDSv2 Fallback** (`get_instance_id`)
+
+The gem runs on a mixed Ubuntu 20 / Ubuntu 24 fleet, so `get_instance_id` tries both versions of
+the EC2 Instance Metadata Service:
+
+1. **IMDSv1** (`get_instance_id_imds_v1`): plain `curl` GET of `/latest/meta-data/instance-id`.
+   Works on the Ubuntu 20 instances, which were launched with `HttpTokens=optional`.
+2. **IMDSv2** (`get_instance_id_imds_v2`): `PUT /latest/api/token`, then re-issue the GET with an
+   `X-aws-ec2-metadata-token` header. Required on Ubuntu 24 instances, because Canonical registers
+   the 24.04 AMIs with `imds-support=v2.0`, which forces `HttpTokens=required` on every instance
+   launched from them — an unauthenticated IMDSv1 GET gets a 401 there.
+
+The result of each attempt is validated against `INSTANCE_ID_REGEX` (`/\Ai-[0-9a-f]+\z/i`) rather
+than trusting the exit status, so an HTML/XML error body is never mistaken for an instance id. All
+IMDS calls use `--fail --connect-timeout 2 --max-time 5` so an unreachable metadata endpoint cannot
+stall the shutdown path. The IMDSv2 token exchange happens inside a single shell command so the
+token is never interpolated back into Ruby or written to the log.
+
+Once the whole fleet is on Ubuntu 24, the IMDSv1 attempt can be dropped — IMDSv2 works on
+IMDSv1-optional instances too, so the v2 path alone is sufficient for both OS versions.
+
 **Fallback Method - Direct Shutdown** (runner.rb:112-115):
 ```ruby
 else
